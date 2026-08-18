@@ -123,3 +123,50 @@ class AttemptEconomicsRecord(Base):
     latency_ms: Mapped[int] = mapped_column(Integer, default=0)
     mutation_depth: Mapped[int] = mapped_column(Integer, default=0)
     tool_calls: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class AttackAttemptRecord(Base):
+    __tablename__ = "attack_attempts"
+    id: Mapped[object] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    campaign_id: Mapped[object] = mapped_column(Uuid, ForeignKey("campaigns.id"), index=True)
+    agent: Mapped[str] = mapped_column(String(64))
+    category: Mapped[str] = mapped_column(String(120))
+    test_case: Mapped[str] = mapped_column(String(120))
+    input_summary: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(32), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class ObservationRecord(Base):
+    __tablename__ = "observations"
+    id: Mapped[object] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    attempt_id: Mapped[object] = mapped_column(Uuid, ForeignKey("attack_attempts.id"), index=True)
+    response_summary: Mapped[str] = mapped_column(Text)
+    latency_ms: Mapped[int] = mapped_column(Integer)
+    estimated_tokens: Mapped[int] = mapped_column(Integer)
+    metadata_json: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class EvaluationRecord(Base):
+    __tablename__ = "evaluations"
+    id: Mapped[object] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    observation_id: Mapped[object] = mapped_column(Uuid, ForeignKey("observations.id"), index=True)
+    evaluator: Mapped[str] = mapped_column(String(120))
+    is_vulnerable: Mapped[bool]
+    confidence: Mapped[float]
+    reason: Mapped[str] = mapped_column(Text)
+    evidence_json: Mapped[dict] = mapped_column("evidence", JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class AgentMemoryRecord(Base):
+    __tablename__ = "agent_memory"
+    id: Mapped[object] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    campaign_id: Mapped[object] = mapped_column(Uuid, ForeignKey("campaigns.id"), index=True)
+    agent: Mapped[str] = mapped_column(String(64))
+    memory_type: Mapped[str] = mapped_column(String(32), index=True)
+    content: Mapped[str] = mapped_column(Text)
+    confidence: Mapped[float]
+    source_attack_id: Mapped[object | None] = mapped_column(Uuid, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)

@@ -25,6 +25,10 @@ SwarmShield is an authorized, defensive AI-security assessment platform. It mode
 - evidence-grounded remediation generation and controlled re-validation results
 - campaign economics (requests, estimated tokens, latency and finding efficiency)
 - backend-generated assessment report endpoint grounded in stored campaign records
+- typed demo target adapter behind authorization, host-scope, and request-budget controls
+- persisted normalized validation attempts, observations, and evaluator decisions
+- an explicit evaluator threshold that gates finding creation
+- allowlisted Attack DNA mutation with parent lineage and evidence-backed chain projection
 - Docker Compose configuration for API, PostgreSQL, n8n and frontend
 
 ## Authentication
@@ -36,3 +40,7 @@ The supplied frontend archive could not be read from the referenced Downloads lo
 ## Deployment controls
 
 The API container runs `alembic upgrade head` before starting, so PostgreSQL schema state is versioned. In production set all secrets in the deployment platform rather than a checked-in `.env`; set `DEMO_MODE=false`; and configure n8n to call `POST /internal/v1/orchestration/events` with the HMAC signature calculated from `N8N_WEBHOOK_SECRET`. Production campaign starts are handed to n8n through its signed `swarmshield-campaign-start` webhook.
+
+## Current execution boundary
+
+The only enabled adapter is the deterministic `DemoTargetAdapter` for `demo.authorized.local`. It never uses the network. Before it runs, the system requires a non-empty authorization reference, an exact allowed-host match in the registered target scope, and remaining campaign request budget. Any production adapter should retain these checks and add rate limiting, secret isolation, and human approval where appropriate.

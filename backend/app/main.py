@@ -11,16 +11,18 @@ from .auth import LoginRequest, TokenResponse, authenticate, create_token, curre
 from .config import settings
 from .database import Base, engine, get_session
 from .domain import CampaignState
+from .fingerprinting import fingerprint_architecture
+from .agents import active_descriptors, catalog
 from .models import TargetRecord
 from .orchestrator import Orchestrator, valid_signature
 from .repository import Repository
-from .schemas import AttackDNA, Campaign, CampaignCreate, ConsensusDecision, Event, Finding, Prediction, Remediation, Report, Target, TargetCreate
+from .schemas import AgentDescriptor, AgentMemory, AttackAttempt, AttackDNA, Campaign, CampaignCreate, ConsensusDecision, Evaluation, Event, Finding, MutationRequest, Observation, Prediction, Remediation, Report, Target, TargetCreate, TargetFingerprint
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     with next(get_session()) as session:
         if settings.demo_mode and not session.scalar(select(TargetRecord.id).limit(1)):
-            session.add(TargetRecord(name="Demo Support Agent", base_url="https://demo.authorized.local/api", authorization_reference="DEMO-AUTHORIZED-ONLY", architecture={"nodes":[{"id":"llm","type":"llm","label":"Support LLM"},{"id":"rag","type":"rag","label":"Knowledge RAG"},{"id":"tools","type":"tool","label":"Ticket API"}],"edges":[{"source":"rag","target":"llm"},{"source":"llm","target":"tools"}],"trust_boundaries":["retrieved-content","tool-permissions"]}))
+            session.add(TargetRecord(name="Demo Support Agent", base_url="https://demo.authorized.local/api", authorization_reference="DEMO-AUTHORIZED-ONLY", architecture={"nodes":[{"id":"llm","type":"llm","label":"Support LLM"},{"id":"rag","type":"rag","label":"Knowledge RAG"},{"id":"tools","type":"tool","label":"Ticket API"}],"edges":[{"source":"rag","target":"llm"},{"source":"llm","target":"tools"}],"trust_boundaries":["retrieved-content","tool-permissions"],"scope":{"allowed_hosts":["demo.authorized.local"]}}))
             session.commit()
     yield
 
@@ -47,6 +49,18 @@ def architecture(target_id: UUID, session: SessionDep, _: UserDep):
     target = repo(session).get_target(target_id)
     if not target: raise HTTPException(404, "Target not found")
     return target.architecture
+@app.post("/api/v1/targets/{target_id}/fingerprint", response_model=TargetFingerprint)
+def fingerprint(target_id: UUID, session: SessionDep, _: UserDep):
+    target = repo(session).get_target(target_id)
+    if not target: raise HTTPException(404, "Target not found")
+    return fingerprint_architecture(target.architecture).as_dict()
+@app.get("/api/v1/agents", response_model=list[AgentDescriptor])
+def agents(_: UserDep): return [AgentDescriptor.model_validate(item) for item in catalog()]
+@app.get("/api/v1/targets/{target_id}/agents", response_model=list[AgentDescriptor])
+def target_agents(target_id: UUID, session: SessionDep, _: UserDep):
+    target = repo(session).get_target(target_id)
+    if not target: raise HTTPException(404, "Target not found")
+    return [AgentDescriptor.model_validate(item) for item in active_descriptors(fingerprint_architecture(target.architecture))]
 @app.post("/api/v1/campaigns", response_model=Campaign, status_code=201)
 def create_campaign(data: CampaignCreate, session: SessionDep, _: Annotated[dict, Depends(require_roles("ADMIN", "SECURITY_ANALYST"))]):
     try: return repo(session).create_campaign(data)
@@ -105,10 +119,35 @@ def findings(campaign_id: UUID, session: SessionDep, _: UserDep):
 def attack_dna(campaign_id: UUID, session: SessionDep, _: UserDep):
     if not repo(session).get_campaign(campaign_id): raise HTTPException(404, "Campaign not found")
     return repo(session).dna_for_campaign(campaign_id)
+@app.post("/api/v1/campaigns/{campaign_id}/attack-dna/{dna_id}/mutate", response_model=AttackDNA)
+def mutate_attack_dna(campaign_id: UUID, dna_id: UUID, data: MutationRequest, session: SessionDep, _: Annotated[dict, Depends(require_roles("ADMIN", "SECURITY_ANALYST"))]):
+    try: return repo(session).mutate_dna(campaign_id, dna_id, data.mutation_type)
+    except KeyError: raise HTTPException(404, "Attack DNA not found")
+    except ValueError as error: raise HTTPException(422, str(error))
+@app.get("/api/v1/campaigns/{campaign_id}/attempts", response_model=list[AttackAttempt])
+def attempts(campaign_id: UUID, session: SessionDep, _: UserDep):
+    if not repo(session).get_campaign(campaign_id): raise HTTPException(404, "Campaign not found")
+    return repo(session).attempts(campaign_id)
+@app.get("/api/v1/campaigns/{campaign_id}/observations", response_model=list[Observation])
+def observations(campaign_id: UUID, session: SessionDep, _: UserDep):
+    if not repo(session).get_campaign(campaign_id): raise HTTPException(404, "Campaign not found")
+    return repo(session).observations(campaign_id)
+@app.get("/api/v1/campaigns/{campaign_id}/evaluations", response_model=list[Evaluation])
+def evaluations(campaign_id: UUID, session: SessionDep, _: UserDep):
+    if not repo(session).get_campaign(campaign_id): raise HTTPException(404, "Campaign not found")
+    return repo(session).evaluations(campaign_id)
+@app.get("/api/v1/campaigns/{campaign_id}/memory", response_model=list[AgentMemory])
+def memory(campaign_id: UUID, session: SessionDep, _: UserDep):
+    if not repo(session).get_campaign(campaign_id): raise HTTPException(404, "Campaign not found")
+    return repo(session).memories(campaign_id)
 @app.get("/api/v1/campaigns/{campaign_id}/attack-graph")
 def attack_graph(campaign_id: UUID, session: SessionDep, _: UserDep):
     if not repo(session).get_campaign(campaign_id): raise HTTPException(404, "Campaign not found")
     return repo(session).graph(campaign_id)
+@app.get("/api/v1/campaigns/{campaign_id}/evidence-chain")
+def evidence_chain(campaign_id: UUID, session: SessionDep, _: UserDep):
+    if not repo(session).get_campaign(campaign_id): raise HTTPException(404, "Campaign not found")
+    return repo(session).evidence_chain(campaign_id)
 @app.get("/api/v1/findings/{finding_id}/consensus", response_model=list[ConsensusDecision])
 def consensus(finding_id: UUID, session: SessionDep, _: UserDep):
     return repo(session).consensus(finding_id)

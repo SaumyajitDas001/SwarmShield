@@ -20,6 +20,24 @@ class Target(BaseModel):
     architecture: dict[str, Any]
 
 
+class TargetFingerprint(BaseModel):
+    chat: bool
+    rag: bool
+    tools: bool
+    structured_output: bool
+    vision: bool
+    streaming: bool
+    declared_tools: list[str]
+    source: str
+
+
+class AgentDescriptor(BaseModel):
+    name: str
+    category: str
+    description: str
+    required_capability: str | None = None
+
+
 class CampaignCreate(BaseModel):
     target_id: UUID
     name: str = Field(min_length=2, max_length=120)
@@ -72,6 +90,53 @@ class AttackDNA(BaseModel):
     mutations: list[dict[str, Any]]
     success_probability: float
     confidence: float
+
+
+class MutationRequest(BaseModel):
+    mutation_type: str = Field(min_length=3, max_length=64)
+
+
+class AttackAttempt(BaseModel):
+    id: UUID
+    campaign_id: UUID
+    agent: str
+    category: str
+    test_case: str
+    input_summary: str
+    status: str
+    created_at: datetime
+
+
+class Observation(BaseModel):
+    id: UUID
+    attempt_id: UUID
+    response_summary: str
+    latency_ms: int
+    estimated_tokens: int
+    metadata: dict[str, Any]
+    created_at: datetime
+
+
+class Evaluation(BaseModel):
+    id: UUID
+    observation_id: UUID
+    evaluator: str
+    is_vulnerable: bool
+    confidence: float
+    reason: str
+    evidence: dict[str, Any]
+    created_at: datetime
+
+
+class AgentMemory(BaseModel):
+    id: UUID
+    campaign_id: UUID
+    agent: str
+    memory_type: str
+    content: str
+    confidence: float
+    source_attack_id: UUID | None
+    created_at: datetime
 
 
 class ConsensusDecision(BaseModel):
