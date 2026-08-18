@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: swarmshield
+      POSTGRES_USER: swarmshield
+      POSTGRES_PASSWORD: swarmshield
+    ports: ["5432:5432"]
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U swarmshield -d swarmshield"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  api:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://swarmshield:swarmshield@db:5432/swarmshield
+    ports: ["8000:8000"]
+    depends_on:
+      db:
+        condition: service_healthy
+  frontend:
+    build: ./frontend
+    ports: ["5173:80"]
+    depends_on: [api]
+  n8n:
+    image: n8nio/n8n:latest
+    ports: ["5678:5678"]
+    environment:
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-development-only-change-me}
+      SWARMSHIELD_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET}
+    volumes: [n8n_data:/home/node/.n8n]
+volumes:
+  postgres_data:
+  n8n_data:
