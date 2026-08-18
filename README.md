@@ -10,6 +10,12 @@ The repository is a safe, demonstrable MVP and research foundation. The built-in
 
 The contribution is the measurable combination of capability-aware agent activation, shared swarm memory, safe attack genealogy, constrained mutation, evaluator-backed verification, and evidence-supported attack-chain construction.
 
+## Architecture overview
+
+The following diagram shows the current control plane, safe execution boundary, agent orchestration layer, persistence model, analytics surfaces, and end-to-end campaign flow.
+
+![SwarmShield architecture](docs/swarmshield-architecture.png)
+
 ## Current implementation
 
 ### Control plane
